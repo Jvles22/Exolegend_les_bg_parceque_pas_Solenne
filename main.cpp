@@ -6,7 +6,7 @@ float kv = 2.f;
 float wlimit = 3.f;
 float vlimit = 0.6;
 float erreurPos = 0.07;
-
+float casesize = 0.25;
 double reductionAngle(double x)
 {
     x = fmod(x + PI, 2 * PI);
@@ -64,8 +64,14 @@ void loop()
     { // tester si un match à déjà commencer
         // code de votre stratégie
         Position myPosition = gladiator->robot->getData().position;
-        Position goal{0, 0, 0};
+        // Position goal{0.25, 0.25, 0};
+        // for(int i = 0; i < 5; i++){
+        Position goal{myPosition.x, myPosition.y, 0};
         go_to(goal, myPosition);
+        //     go_to(goal, myPosition);
+        //     gladiator->log("Position : %f %f %f", myPosition.x, myPosition.y, myPosition.a); // GFA 4.5.1
+        // }
+        
     }
     delay(10);
 }
