@@ -1,46 +1,71 @@
 #include "gladiator.h"
+Gladiator *gladiator;
 
-Gladiator* gladiator;
-bool enSpirale = true;
+float kw = 1.2;
+float kv = 2.f;
+float wlimit = 3.f;
+float vlimit = 0.6;
+float erreurPos = 0.07;
 
-void reset();
-
-void setup() {
-    gladiator = new Gladiator();
-    gladiator->game->onReset(&reset);
+double reductionAngle(double x)
+{
+    x = fmod(x + PI, 2 * PI);
+    if (x < 0)
+        x += 2 * PI;
+    return x - PI;
 }
+void go_to(Position cons, Position pos)
+{
+    double consvl, consvr;
+    double dx = cons.x - pos.x;
+    double dy = cons.y - pos.y;
+    double d = sqrt(dx * dx + dy * dy);
 
-void reset() {
-    enSpirale = true;
-}
+    if (d > erreurPos)
+    {
+        double rho = atan2(dy, dx);
+        double consw = kw * reductionAngle(rho - pos.a);
 
-void loop() {
-    if (gladiator->game->isStarted() && enSpirale) {
-        RobotData data = gladiator->robot->getData();
-        Position position = data.position;
+        double consv = kv * d * cos(reductionAngle(rho - pos.a));
+        consw = abs(consw) > wlimit ? (consw > 0 ? 1 : -1) * wlimit : consw;
+        consv = abs(consv) > vlimit ? (consv > 0 ? 1 : -1) * vlimit : consv;
 
-        double distanceCentre = sqrt(position.x * position.x + position.y * position.y);
-
-        // Condition d'arrêt : si le robot est proche du centre (tolérance de 0.1 m)
-        if (distanceCentre < 0.1) {
-            gladiator->control->setWheelSpeed(WheelAxis::RIGHT, 0);
-            gladiator->control->setWheelSpeed(WheelAxis::LEFT, 0);
-            gladiator->log("Le robot est arrivé au centre !");
-            enSpirale = false;
-            return;
-        }
-
-        // Réduction progressive du rayon de la spirale
-        double facteurDeReduction = 1.0 - (distanceCentre / 2.0); // Diminue en fonction de la distance au centre
-        facteurDeReduction = std::max(0.2, facteurDeReduction); // Empêche une valeur trop basse
-
-        // Définition des vitesses des roues pour avancer en spirale
-        double vitesseMax = 0.3;  // Vitesse de la roue extérieure
-        double vitesseMin = vitesseMax * facteurDeReduction; // La roue intérieure tourne moins vite
-
-        gladiator->control->setWheelSpeed(WheelAxis::RIGHT, vitesseMax);
-        gladiator->control->setWheelSpeed(WheelAxis::LEFT, vitesseMin);
-
-        delay(100); // Petit délai pour ajustement
+        consvl = consv - gladiator->robot->getRobotRadius() * consw; // GFA 3.6.2
+        consvr = consv + gladiator->robot->getRobotRadius() * consw; // GFA 3.6.2
     }
+    else
+    {
+        consvr = 0;
+        consvl = 0;
+    }
+
+    gladiator->control->setWheelSpeed(WheelAxis::RIGHT, consvr, false); // GFA 3.2.1
+    gladiator->control->setWheelSpeed(WheelAxis::LEFT, consvl, false);  // GFA 3.2.1
+}
+
+void reset()
+{
+    // fonction de reset:
+    // initialisation de toutes vos variables avant le début d'un match
+    gladiator->log("Call of reset function"); // GFA 4.5.1
+}
+
+void setup()
+{
+    // instanciation de l'objet gladiator
+    gladiator = new Gladiator();
+    // enregistrement de la fonction de reset qui s'éxecute à chaque fois avant qu'une partie commence
+    gladiator->game->onReset(&reset); // GFA 4.4.1
+}
+
+void loop()
+{
+    if (gladiator->game->isStarted())
+    { // tester si un match à déjà commencer
+        // code de votre stratégie
+        Position myPosition = gladiator->robot->getData().position;
+        Position goal{0, 0, 0};
+        go_to(goal, myPosition);
+    }
+    delay(10);
 }
