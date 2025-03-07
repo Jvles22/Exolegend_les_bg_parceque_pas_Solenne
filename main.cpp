@@ -66,10 +66,10 @@ void loop()
         Position myPosition = gladiator->robot->getData().position;
         // Position goal{0.25, 0.25, 0};
         // for(int i = 0; i < 5; i++){
-        Position goal{myPosition.x, myPosition.y, 0};
+        Position goal{myPosition.x+1, myPosition.y, 0};
         go_to(goal, myPosition);
         //     go_to(goal, myPosition);
-        //     gladiator->log("Position : %f %f %f", myPosition.x, myPosition.y, myPosition.a); // GFA 4.5.1
+        gladiator->log("Position : %f %f %f", myPosition.x, myPosition.y, myPosition.a); // GFA 4.5.1
         // }
         
     }
