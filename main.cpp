@@ -1,6 +1,7 @@
 #include "gladiator.h"
 #include <cmath>
 #include <algorithm>
+#undef abs
 
 class Vector2 {
   public:
@@ -78,6 +79,28 @@ bool aim(Gladiator *gladiator, const Vector2 &target, bool showLogs) {
     return false;
 }
 
+bool aimFast(Gladiator *gladiator, const Vector2 &target) {
+    auto posRaw = gladiator->robot->getData().position;
+    Vector2 pos{posRaw.x, posRaw.y};
+    //Vector2 direction = (target - pos).normalized();
+    
+    gladiator->control->setWheelSpeed(WheelAxis::LEFT, 1.0f);
+    gladiator->control->setWheelSpeed(WheelAxis::RIGHT, 1.0f);
+    
+    return (target - pos).norm2() < 0.05f;
+}
+
+int findEnemy() {
+    for (int id = 1; id <= 127; ++id) {
+        if (id == 63 || id == 57) continue; // Ignorer les robots alliés
+        RobotData enemy = gladiator->game->getOtherRobotData(id);
+        if (enemy.id != 0 && enemy.lifes > 0) {
+            return id;
+        }
+    }
+    return -1;
+}
+
 void setup() {
     gladiator = new Gladiator();
     gladiator->game->onReset(&reset);
@@ -109,20 +132,41 @@ Position findCoinPosition() {
 
 void loop() {
     if (gladiator->game->isStarted()) {
-        Position pos = findCoinPosition();
-        gladiator->log("Coin Position: %0.1f, %0.1f", pos.x, pos.y);
-        static unsigned i = 0;
-        bool showLogs = (i++ % 50 == 0);
-
-        if (aim(gladiator, {pos.x, pos.y}, showLogs)) {
-            gladiator->log("Target reached!");
+        // 1. Attaquer les ennemis en priorité
+        int enemyId = findEnemy();
+        if (enemyId != -1) {
+            RobotData enemy = gladiator->game->getOtherRobotData(enemyId);
+            Vector2 enemyPos{enemy.position.x, enemy.position.y};
+            gladiator->log("Attacking enemy at: %0.1f, %0.1f", enemy.position.x, enemy.position.y);
+            if (aimFast(gladiator, enemyPos)) {
+                gladiator->log("Enemy reached! Dropping bombs...");
+                int bombCount = gladiator->weapon->getBombCount();
+                if (bombCount > 0) {
+                    gladiator->weapon->dropBombs(bombCount);
+                    gladiator->log("Dropped bombs on enemy");
+                }
+            }
+            return; // Sortir de la boucle pour continuer à attaquer
         }
 
+        // 2. Si aucun ennemi n'est trouvé, chercher des pièces
+        Position pos = findCoinPosition();
+        if (pos.x != -1 && pos.y != -1) {
+            gladiator->log("Coin Position: %0.1f, %0.1f", pos.x, pos.y);
+            static unsigned i = 0;
+            bool showLogs = (i++ % 50 == 0);
+
+            if (aim(gladiator, {pos.x, pos.y}, showLogs)) {
+                gladiator->log("Target reached!");
+            }
+        }
+
+        // 3. Larguer des bombes si nécessaire
         int bombCount = gladiator->weapon->getBombCount();
-        if (bombCount > 2) {
+        if (bombCount > 0) {
             gladiator->weapon->dropBombs(bombCount);
             gladiator->log("Dropped bombs");
         }
     }
-    delay(50);
+    delay(50); // Boucle à 20 Hz
 }
