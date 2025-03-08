@@ -186,7 +186,7 @@ void loop() {
 
         }
         int id=gladiator->robot->getData().id;
-        if (id==63) {
+        if (id==94) {
         for (int i = currentSize/2; i < currentSize; ++i) {
             for (int j = 0; j < currentSize; ++j) {
                 
