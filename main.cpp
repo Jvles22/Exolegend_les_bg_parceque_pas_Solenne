@@ -46,16 +46,17 @@ private:
 };
 
 Gladiator *gladiator;
-int currentSize = 12; // Taille initiale du terrain
-unsigned long lastShrinkTime = 0; // Temps du dernier rétrécissement
 
-void reset() {
-    // Fonction de reset
-    gladiator->log("Call of reset function");
+void reset()
+{
 }
 
-// Fonction pour déplacer le robot vers une position cible
-void go_to(Position cons, Position pos)
+inline float moduloPi(float a) // return angle in [-pi; pi]
+{
+    return (a < 0.0) ? (std::fmod(a - M_PI, 2 * M_PI) + M_PI) : (std::fmod(a + M_PI, 2 * M_PI) - M_PI);
+}
+
+inline bool aim(Gladiator *gladiator, const Vector2 &target, bool showLogs)
 {
     double consvl, consvr;
     double dx = cons.x - pos.x;
@@ -80,56 +81,81 @@ void go_to(Position cons, Position pos)
         consvl = 0;
     }
 
-    gladiator->control->setWheelSpeed(WheelAxis::RIGHT, consvr, false); // GFA 3.2.1
-    gladiator->control->setWheelSpeed(WheelAxis::LEFT, consvl, false);  // GFA 3.2.1
+    gladiator->control->setWheelSpeed(WheelAxis::LEFT, leftCommand);
+    gladiator->control->setWheelSpeed(WheelAxis::RIGHT, rightCommand);
+
+    if (showLogs || targetReached)
+    {
+        gladiator->log("ta %f, ca %f, ea %f, tx %f cx %f ex %f ty %f cy %f ey %f", targetAngle, posRaw.a, angleError,
+                       target.x(), pos.x(), posError.x(), target.y(), pos.y(), posError.y());
+    }
+
+    return targetReached;
 }
 
 void setup() {
     // Instanciation de l'objet gladiator
     gladiator = new Gladiator();
-    // Enregistrement de la fonction de reset
+    // enregistrement de la fonction de reset qui s'éxecute à chaque fois avant qu'une partie commence
     gladiator->game->onReset(&reset);
 }
 
-void loop() {
-    if (gladiator->game->isStarted()) {
-        // Vérifier si le terrain doit rétrécir
-        unsigned long currentTime = millis();
-        if (currentTime - lastShrinkTime >= 18000) { // 18 secondes
-            lastShrinkTime = currentTime;
-            currentSize -= 2; // Réduire la taille du terrain
-            gladiator->log("Terrain rétréci à %d cases", currentSize);
-        }
 
-        // Parcourir toutes les cases du terrain pour trouver des pièces
-        for (int i = 0; i < currentSize; ++i) {
-            for (int j = 0; j < currentSize; ++j) {
-                MazeSquare *indexedSquare = gladiator->maze->getSquare(i, j);
-                Coin coin = indexedSquare->coin;
 
-                // Si une pièce est trouvée, déplacer le robot vers elle
-                if (coin.value > 0) {
-                    Position posCoin = coin.p;
-                    Position myPosition = gladiator->robot->getData().position;
-                    go_to(posCoin, myPosition);
-                    gladiator->log("Déplacement vers la pièce à (%.2f, %.2f)", posCoin.x, posCoin.y);
-                    return; // Sortir de la boucle après avoir trouvé une pièce
+
+// Fonction pour détecter la position d'un coin proche du robot
+Position findCoinPosition() {
+    // Récupérer la case la plus proche du robot
+    const MazeSquare* nearestSquare = gladiator->maze->getNearestSquare();
+
+    // Rayon de recherche (chercher dans un carré de 3x3 cases autour du robot)
+    int range = 1;  // Rechercher dans une zone de 3x3 autour du robot
+
+    // Parcourir les cases autour du robot pour vérifier si un coin est présent
+    for (int di = -range; di <= range; ++di) {
+        for (int dj = -range; dj <= range; ++dj) {
+            int i = nearestSquare->i + di;  // L'indice de la colonne (horizontal)
+            int j = nearestSquare->j + dj;  // L'indice de la ligne (vertical)
+
+            // Vérifier si les indices sont valides dans la grille (limites 0 <= i, j < 11)
+            if (i >= 0 && j >= 0 && i < 11 && j < 11) {
+                // Récupérer la case correspondante
+                const MazeSquare* square = gladiator->maze->getSquare(i, j);
+
+                // Vérifier si la case contient un coin (indépendamment d'une bombe)
+                if (square && square->coin.value > 0) {
+                    // Si un coin est présent sur la case, renvoyer sa position
+                    return square->coin.p;
                 }
             }
         }
-
-        // Gestion des bombes
-        int bombCount = gladiator->weapon->getBombCount();
-        if (bombCount > 2) {
-            // Dropper toutes les bombes sauf 2
-            gladiator->weapon->dropBombs(bombCount - 2);
-            gladiator->log("Drop bomb");
-        } else if (gladiator->weapon->canDropBombs(1)) {
-            // Dropper une bombe
-            gladiator->weapon->dropBombs(1);
-            gladiator->log("Drop bomb");
-        }
-
-        delay(100); // Boucle à 10 Hz
     }
+
+    // Si aucun coin n'est trouvé, renvoyer une position invalide (0, 0)
+    return Position{0, 0, 0};
+}
+
+
+
+void loop() {
+    if (gladiator->game->isStarted()) {
+        // Trouver la position d'un coin proche du robot
+        Position coinPos = findCoinPosition();
+
+        // Afficher la position du coin
+        if (coinPos.x != 0 || coinPos.y != 0) {
+            gladiator->log("Coin trouvé à la position: (%.2f, %.2f)", coinPos.x, coinPos.y);
+        } else {
+            gladiator->log("Aucun coin trouvé autour.");
+        }
+        static unsigned i = 0;
+        bool showLogs = (i % 50 == 0);
+
+        if (aim(gladiator, coinPos, showLogs))
+        {
+            gladiator->log("target atteinte !");
+        }
+        i++;
+    }
+    delay(1000);  // Attendre avant de relancer la boucle
 }
