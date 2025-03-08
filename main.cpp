@@ -165,7 +165,7 @@ double calculateDistance(const Position& coord1, const Coordinate& coord2) {
 void processCoordinates(const std::vector<std::vector<Position>>& PositionLists, Position positiongladiator) {
     for (i=0;i<gladiator->maze->getSize;i++) {
         for (j=0;j<gladiator->maze->getSize;j++) {
-            if(gladiator.maze.getCoins{i,j} !=null)
+            if(gladiator->maze->getSquare-> !=null)
             double distance = calculateDistance(Position, position);
             std::cout << "Coordonnée: (" << Position.x << ", " << Position.y << "), ";
             std::cout << "Distance par rapport à la position: " << distance << std::endl;
