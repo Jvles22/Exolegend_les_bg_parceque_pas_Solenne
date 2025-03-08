@@ -205,7 +205,7 @@ void loop()
     if (gladiator->game->isStarted())
     {
         Position pos = findCoinPosition();
-        gladiator->log("coin position : %d; %d", pos.x, pos.y);
+        gladiator->log("coin position : %0.01f; %0.01f", pos.x, pos.y);
         static unsigned i = 0;
         bool showLogs = (i % 50 == 0);
 
@@ -214,14 +214,14 @@ void loop()
         {
             gladiator->log("target atteinte !");
         }
-        if (aim(gladiator, {0, 0}, showLogs))
-        {
-            gladiator->log("target atteinte !");
-        }
-        if (aim(gladiator, {1.5, 1.5}, showLogs))
-        {
-            gladiator->log("target atteinte !");
-        }
+        // else if (aim(gladiator, {0, 0}, showLogs))
+        // {
+        //     gladiator->log("target atteinte !");
+        // }
+        // if (aim(gladiator, {1.5, 1.5}, showLogs))
+        // {
+        //     gladiator->log("target atteinte !");
+        // }
         int bombCount = gladiator->weapon->getBombCount();
         gladiator->log("bombes restantes : %d", bombCount);
 
