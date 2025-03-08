@@ -93,61 +93,54 @@ class Vector2
 
 Gladiator *gladiator;
 
-void reset()
+float kw = 1.2;
+float kv = 1.f;
+float wlimit = 3.f;
+float vlimit = 0.6;
+float erreurPos = 0.07;
+
+double reductionAngle(double x)
 {
+    x = fmod(x + M_PI, 2 * M_PI);
+    if (x < 0)
+        x += 2 * M_PI;
+    return x - M_PI;
 }
 
-inline float moduloPi(float a) // return angle in [-pi; pi]
+void go_to(Position cons, Position pos)
 {
-    return (a < 0.0) ? (std::fmod(a - M_PI, 2 * M_PI) + M_PI) : (std::fmod(a + M_PI, 2 * M_PI) - M_PI);
-}
+    double consvl, consvr;
+    double dx = cons.x - pos.x;
+    double dy = cons.y - pos.y;
+    double d = sqrt(dx * dx + dy * dy);
 
-inline bool aim(Gladiator *gladiator, const Vector2 &target, bool showLogs)
-{
-    constexpr float ANGLE_REACHED_THRESHOLD = 0.1;
-    constexpr float POS_REACHED_THRESHOLD = 0.05;
-
-    auto posRaw = gladiator->robot->getData().position;
-    Vector2 pos{posRaw.x, posRaw.y};
-
-    Vector2 posError = target - pos;
-
-    float targetAngle = posError.angle();
-    float angleError = moduloPi(targetAngle - posRaw.a);
-
-    bool targetReached = false;
-    float leftCommand = 0.f;
-    float rightCommand = 0.f;
-
-    if (posError.norm2() < POS_REACHED_THRESHOLD) //
+    if (d > erreurPos)
     {
-        targetReached = true;
-    }
-    else if (std::abs(angleError) > ANGLE_REACHED_THRESHOLD)
-    {
-        float factor = 0.2;
-        if (angleError < 0)
-            factor = -factor;
-        rightCommand = factor;
-        leftCommand = -factor;
+        double rho = atan2(dy, dx);
+        double consw = kw * reductionAngle(rho - pos.a);
+
+        double consv = kv * d * cos(reductionAngle(rho - pos.a));
+        consw = abs(consw) > wlimit ? (consw > 0 ? 1 : -1) * wlimit : consw;
+        consv = abs(consv) > vlimit ? (consv > 0 ? 1 : -1) * vlimit : consv;
+
+        consvl = consv - gladiator->robot->getRobotRadius() * consw; // GFA 3.6.2
+        consvr = consv + gladiator->robot->getRobotRadius() * consw; // GFA 3.6.2
     }
     else
     {
-        float factor = 0.5;
-        rightCommand = factor; //+angleError*0.1  => terme optionel, "pseudo correction angulaire";
-        leftCommand = factor;  //-angleError*0.1   => terme optionel, "pseudo correction angulaire";
+        consvr = 0;
+        consvl = 0;
     }
 
-    gladiator->control->setWheelSpeed(WheelAxis::LEFT, leftCommand);
-    gladiator->control->setWheelSpeed(WheelAxis::RIGHT, rightCommand);
+    gladiator->control->setWheelSpeed(WheelAxis::RIGHT, consvr, false); // GFA 3.2.1
+    gladiator->control->setWheelSpeed(WheelAxis::LEFT, consvl, false);  // GFA 3.2.1
+}
 
-    if (showLogs || targetReached)
-    {
-        gladiator->log("ta %f, ca %f, ea %f, tx %f cx %f ex %f ty %f cy %f ey %f", targetAngle, posRaw.a, angleError,
-                       target.x(), pos.x(), posError.x(), target.y(), pos.y(), posError.y());
-    }
-
-    return targetReached;
+void reset()
+{
+    // fonction de reset:
+    // initialisation de toutes vos variables avant le début d'un match
+    gladiator->log("Call of reset function"); // GFA 4.5.1
 }
 
 void setup()
@@ -155,19 +148,19 @@ void setup()
     // instanciation de l'objet gladiator
     gladiator = new Gladiator();
     // enregistrement de la fonction de reset qui s'éxecute à chaque fois avant qu'une partie commence
-    gladiator->game->onReset(&reset);
+    gladiator->game->onReset(&reset); // GFA 4.4.1
 }
 
-
-
-
-// Fonction pour détecter la position d'un coin proche du robot
 Position findCoinPosition() {
     // Récupérer la case la plus proche du robot
     const MazeSquare* nearestSquare = gladiator->maze->getNearestSquare();
 
     // Rayon de recherche (chercher dans un carré de 3x3 cases autour du robot)
-    int range = 1;  // Rechercher dans une zone de 3x3 autour du robot
+    int range = 3;  // Rechercher dans une zone de 3x3 autour du robot
+
+    // Initialiser la position du coin le plus proche à une valeur invalide
+    Position closestCoinPosition = {-1, -1};
+    int closestDistance = INT_MAX;  // Initialiser avec une distance maximale
 
     // Parcourir les cases autour du robot pour vérifier si un coin est présent
     for (int di = -range; di <= range; ++di) {
@@ -182,38 +175,45 @@ Position findCoinPosition() {
 
                 // Vérifier si la case contient un coin (indépendamment d'une bombe)
                 if (square && square->coin.value > 0) {
-                    // Si un coin est présent sur la case, renvoyer sa position
-                    return square->coin.p;
+                    // Calculer la distance entre le robot et le coin
+                    int distance = abs(di) + abs(dj);
+
+                    // Si cette distance est plus courte que la distance minimale actuelle, mettre à jour
+                    if (distance < closestDistance) {
+                        closestDistance = distance;
+                        closestCoinPosition = square->coin.p;
+                    }
                 }
             }
         }
     }
 
-    // Si aucun coin n'est trouvé, renvoyer une position invalide (0, 0)
-    return Position{0, 0, 0};
+    // Retourner la position du coin le plus proche
+    return closestCoinPosition;
 }
 
-
-
-void loop() {
-    if (gladiator->game->isStarted()) {
-        // Trouver la position d'un coin proche du robot
-        Position coinPos = findCoinPosition();
-
-        // Afficher la position du coin
-        if (coinPos.x != 0 || coinPos.y != 0) {
-            gladiator->log("Coin trouvé à la position: (%.2f, %.2f)", coinPos.x, coinPos.y);
-        } else {
-            gladiator->log("Aucun coin trouvé autour.");
-        }
+void loop()
+{
+    if (gladiator->game->isStarted())
+    {
+        Position pos = findCoinPosition();
+        gladiator->log("coin position : %d; %d", pos.x, pos.y);
         static unsigned i = 0;
         bool showLogs = (i % 50 == 0);
 
-        if (aim(gladiator, coinPos, showLogs))
-        {
-            gladiator->log("target atteinte !");
+        Position myPosition = gladiator->robot->getData().position;
+        go_to({pos.x, pos.y, 0}, myPosition);
+
+        int bombCount = gladiator->weapon->getBombCount();
+        gladiator->log("bombes restantes : %d", bombCount);
+
+        // Si il reste plus de 2 bombes
+        if (bombCount > 0) {
+            // Dropper toutes les bombes sauf 2
+            gladiator->weapon->dropBombs(bombCount);
+            gladiator->log("Drop bomb");
         }
         i++;
     }
-    delay(1000);  // Attendre avant de relancer la boucle
+    delay(50); // Augmenter le délai pour ralentir la boucle principale
 }
