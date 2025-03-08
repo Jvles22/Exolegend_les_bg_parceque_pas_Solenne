@@ -157,21 +157,50 @@ void setup()
     // enregistrement de la fonction de reset qui s'éxecute à chaque fois avant qu'une partie commence
     gladiator->game->onReset(&reset);
 }
-double calculateDistance(const Position& coord1, const Coordinate& coord2) {
-    return std::sqrt(std::pow(coord1.x - coord2.x, 2) + std::pow(coord1.y - coord2.y, 2));
-}
+// double calculateDistance(const Position& coord1, const Coordinate& coord2) {
+//     return std::sqrt(std::pow(coord1.x - coord2.x, 2) + std::pow(coord1.y - coord2.y, 2));
+// }
 
-// Fonction principale qui prend une liste de listes de coordonnées et une position
-void processCoordinates(const std::vector<std::vector<Position>>& PositionLists, Position positiongladiator) {
-    for (i=0;i<gladiator->maze->getSize;i++) {
-        for (j=0;j<gladiator->maze->getSize;j++) {
-            if(gladiator->maze->getSquare-> !=null)
-            double distance = calculateDistance(Position, position);
-            std::cout << "Coordonnée: (" << Position.x << ", " << Position.y << "), ";
-            std::cout << "Distance par rapport à la position: " << distance << std::endl;
+Position findCoinPosition() {
+    // Récupérer la case la plus proche du robot
+    const MazeSquare* nearestSquare = gladiator->maze->getNearestSquare();
+
+    // Rayon de recherche (chercher dans un carré de 3x3 cases autour du robot)
+    int range = 3;  // Rechercher dans une zone de 3x3 autour du robot
+
+    // Parcourir les cases autour du robot pour vérifier si un coin est présent
+    for (int di = -range; di <= range; ++di) {
+        for (int dj = -range; dj <= range; ++dj) {
+            int i = nearestSquare->i + di;  // L'indice de la colonne (horizontal)
+            int j = nearestSquare->j + dj;  // L'indice de la ligne (vertical)
+
+            // Vérifier si les indices sont valides dans la grille (limites 0 <= i, j < 11)
+            if (i >= 0 && j >= 0 && i < 11 && j < 11) {
+                // Récupérer la case correspondante
+                const MazeSquare* square = gladiator->maze->getSquare(i, j);
+
+                // Vérifier si la case contient un coin (indépendamment d'une bombe)
+                if (square && square->coin.value > 0) {
+                    // Si un coin est présent sur la case, renvoyer sa position
+                    return square->coin.p;
+                }
+            }
         }
     }
+
+    // Si aucun coin n'est trouvé, renvoyer une position invalide (0, 0)
+    return Position{0, 0, 0};
 }
+// Fonction principale qui prend une liste de listes de coordonnées et une position
+// void processCoordinates(const std::vector<std::vector<Position>>& PositionLists, Position positiongladiator) {
+//     for (i=0;i<gladiator->maze->getCurrentMazeSize();i++) {
+//         for (j=0;j<gladiator->maze->getCurrentMazeSize();j++) {
+            
+//         }
+//     }
+// }
+
+
 
 
 void loop()
@@ -179,12 +208,27 @@ void loop()
 
     if (gladiator->game->isStarted())
     {
+        Position pos = findCoinPosition();
         static unsigned i = 0;
         bool showLogs = (i % 50 == 0);
+        
 
-        if (aim(gladiator, {1.5, 1.5}, showLogs))
+        if (aim(gladiator, {pos.x, pos.y}, showLogs))
         {
             gladiator->log("target atteinte !");
+        }
+        int bombCount = gladiator->weapon->getBombCount();
+        
+        // Si il reste plus de 2 bombes
+        if (bombCount > 2) {
+            // Dropper toutes les bombes sauf 2
+            gladiator->weapon->dropBombs(bombCount - 2);
+            gladiator->log("Drop bomb");
+        // Il peux dropper au moins 1 bombe
+        } else if (gladiator->weapon->canDropBombs(1)) {
+            // Dropper une bombe
+            gladiator->weapon->dropBombs(1);
+            gladiator->log("Drop bomb");
         }
         i++;
     }
