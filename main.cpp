@@ -1,239 +1,154 @@
 #include "gladiator.h"
+#include <Arduino.h>
+#undef abs  // Undefine the macro defined in Arduino.h
+
 #include <cmath>
+#include <queue>
+#include <unordered_map>
 #include <vector>
-#include <chrono>
-#undef abs
+#include <algorithm>
+#include <cstdint>
 
-float kw = 1.2;
-float kv = 1.f;
-float wlimit = 3.f;
-float vlimit = 0.6;
-float erreurPos = 0.07;
-
-
-
-double reductionAngle(double x)
-{
-    x = fmod(x + PI, 2 * PI);
-    if (x < 0)
-        x += 2 * PI;
-    return x - PI;
-}
+// Constantes
+constexpr float CELL_SIZE = 3.0f / 14;
+constexpr int RANGE = 3;
+constexpr int LOG_FREQUENCY = 50;
+constexpr float ANGLE_REACHED_THRESHOLD = 0.1f;
+constexpr float POS_REACHED_THRESHOLD = 0.05f;
+constexpr float KW = 1.2f;
+constexpr float KV = 1.0f;
+constexpr float WLIMIT = 3.0f;
+constexpr float VLIMIT = 0.6f;
+constexpr float ERREUR_POS = 0.07f;
 
 class Vector2 {
 public:
     Vector2() : _x(0.), _y(0.) {}
     Vector2(float x, float y) : _x(x), _y(y) {}
 
-    float norm2() const {
-        return std::sqrt(_x * _x + _y * _y);
-    }
+    float norm1() const { return std::abs(_x) + std::abs(_y); }
+    float norm2() const { return std::sqrt(_x * _x + _y * _y); }
+    void normalize() { _x /= norm2(); _y /= norm2(); }
+    Vector2 normalized() const { Vector2 out = *this; out.normalize(); return out; }
 
-    Vector2 operator-(const Vector2 &other) const {
-        return {_x - other._x, _y - other._y};
-    }
+    Vector2 operator-(const Vector2 &other) const { return {_x - other._x, _y - other._y}; }
+    Vector2 operator+(const Vector2 &other) const { return {_x + other._x, _y + other._y}; }
+    Vector2 operator*(float f) const { return {_x * f, _y * f}; }
+
+    bool operator==(const Vector2 &other) const { return std::abs(_x - other._x) < 1e-5 && std::abs(_y - other._y) < 1e-5; }
+    bool operator!=(const Vector2 &other) const { return !(*this == other); }
 
     float x() const { return _x; }
     float y() const { return _y; }
-    float dot(const Vector2& other) const { return _x*other._x + _y*other._y; }
-    float cross(const Vector2& other) const { return _x*other._y - _y*other._x; }
-    float angle(const Vector2& m) const { return std::atan2(cross(m), dot(m)); }
-    float angle() const { return std::atan2(_y, _x); }
 
+    float dot(const Vector2 &other) const { return _x * other._x + _y * other._y; }
+    float cross(const Vector2 &other) const { return _x * other._y - _y * other._x; }
+    float angle(const Vector2 &m) const { return std::atan2(cross(m), dot(m)); }
+    float angle() const { return std::atan2(_y, _x); }
 
 private:
     float _x, _y;
 };
+
+Gladiator *gladiator;
+
+void reset() {
+    gladiator->log("Call of reset function");
+}
+
 inline float moduloPi(float a) {
     return (a < 0.0) ? (std::fmod(a - M_PI, 2 * M_PI) + M_PI) : (std::fmod(a + M_PI, 2 * M_PI) - M_PI);
 }
 
-inline bool aim(Gladiator* gladiator, const Vector2& target, bool showLogs)
-{
-    constexpr float ANGLE_REACHED_THRESHOLD = 0.1;
-    constexpr float POS_REACHED_THRESHOLD = 0.05;
-
+inline bool aim(Gladiator *gladiator, const Vector2 &target, bool showLogs) {
     auto posRaw = gladiator->robot->getData().position;
     Vector2 pos{posRaw.x, posRaw.y};
-
     Vector2 posError = target - pos;
-
     float targetAngle = posError.angle();
     float angleError = moduloPi(targetAngle - posRaw.a);
-
-    bool targetReached = false;
+    bool targetReached = posError.norm2() < POS_REACHED_THRESHOLD;
     float leftCommand = 0.f;
     float rightCommand = 0.f;
 
-    if (posError.norm2() < POS_REACHED_THRESHOLD) //
-    {
-        targetReached = true;
-    } 
-    else if (std::abs(angleError) > ANGLE_REACHED_THRESHOLD)
-    {
-        float factor = 0.2;
-        if (angleError < 0)
-            factor = - factor;
-        rightCommand = factor;
-        leftCommand = -factor;
-    }
-    else {
-        float factor = 0.5;
-        rightCommand = factor;//+angleError*0.1  => terme optionel, "pseudo correction angulaire";
-        leftCommand = factor;//-angleError*0.1   => terme optionel, "pseudo correction angulaire";
+    if (!targetReached) {
+        if (std::abs(angleError) > ANGLE_REACHED_THRESHOLD) {
+            float factor = angleError < 0 ? -0.2f : 0.2f;
+            rightCommand = factor;
+            leftCommand = -factor;
+        } else {
+            float factor = 0.5f;
+            rightCommand = factor;
+            leftCommand = factor;
+        }
     }
 
     gladiator->control->setWheelSpeed(WheelAxis::LEFT, leftCommand);
     gladiator->control->setWheelSpeed(WheelAxis::RIGHT, rightCommand);
 
-    if (showLogs || targetReached)
-    {
-        gladiator->log("ta %f, ca %f, ea %f, tx %f cx %f ex %f ty %f cy %f ey %f", targetAngle, posRaw.a, angleError, target.x(), pos.x(), posError.x(), target.y(), pos.y(), posError.y());
+    if (showLogs || targetReached) {
+        gladiator->log("ta %f, ca %f, ea %f, tx %f cx %f ex %f ty %f cy %f ey %f", targetAngle, posRaw.a, angleError,
+                       target.x(), pos.x(), posError.x(), target.y(), pos.y(), posError.y());
     }
 
     return targetReached;
 }
 
+Position findClosestBombPosition() {
+    const MazeSquare* nearestSquare = gladiator->maze->getNearestSquare();
+    if (!nearestSquare) return {-1, -1};
 
-Gladiator *gladiator;
-int currentSize = 12; // Taille initiale du terrain modifiée à 8
-unsigned long lastShrinkTime = 0; // Temps du dernier rétrécissement
+    Position closestBombPosition = {-1, -1};
+    int closestDistance = INT_MAX;
 
-void reset() {}
+    // Check surrounding squares for bombs
+    for (int di = -RANGE; di <= RANGE; ++di) {
+        for (int dj = -RANGE; dj <= RANGE; ++dj) {
+            int i = nearestSquare->i + di;
+            int j = nearestSquare->j + dj;
 
-
-void go_to(Position cons, Position pos)
-{
-    double consvl, consvr;
-    double dx = cons.x - pos.x;
-    double dy = cons.y - pos.y;
-    double d = sqrt(dx * dx + dy * dy);
-
-    if (d > erreurPos)
-    {
-        double rho = atan2(dy, dx);
-        double consw = kw * reductionAngle(rho - pos.a);
-
-        double consv = kv * d * cos(reductionAngle(rho - pos.a));
-        consw = abs(consw) > wlimit ? (consw > 0 ? 1 : -1) * wlimit : consw;
-        consv = abs(consv) > vlimit ? (consv > 0 ? 1 : -1) * vlimit : consv;
-
-        consvl = consv - gladiator->robot->getRobotRadius() * consw; // GFA 3.6.2
-        consvr = consv + gladiator->robot->getRobotRadius() * consw; // GFA 3.6.2
-    }
-    else
-    {
-        consvr = 0;
-        consvl = 0;
+            if (i >= 0 && j >= 0 && i < 11 && j < 11) {
+                const MazeSquare* square = gladiator->maze->getSquare(i, j);
+                if (square && square->coin.value == 0) {  // No coin here, check for bombs
+                    int distance = abs(di) + abs(dj);
+                    if (square->isBomb && distance < closestDistance) {  // Check if there's a bomb
+                        closestDistance = distance;
+                        closestBombPosition = square->coin.p;
+                    }
+                }
+            }
+        }
     }
 
-    gladiator->control->setWheelSpeed(WheelAxis::RIGHT, consvr, false); // GFA 3.2.1
-    gladiator->control->setWheelSpeed(WheelAxis::LEFT, consvl, false);  // GFA 3.2.1
+    return closestBombPosition;
 }
 
-
-inline bool aim(Gladiator *gladiator, const Vector2 &target) {
-    constexpr float ANGLE_REACHED_THRESHOLD = 0.1;
-    constexpr float POS_REACHED_THRESHOLD = 0.05;
-
-    auto posRaw = gladiator->robot->getData().position;
-    Vector2 pos{posRaw.x, posRaw.y};
-
-    Vector2 posError = target - pos;
-
-    float targetAngle = std::atan2(posError.y(), posError.x());
-    float angleError = moduloPi(targetAngle - posRaw.a);
-
-    float leftCommand = 0.f;
-    float rightCommand = 0.f;
-
-    if (posError.norm2() < POS_REACHED_THRESHOLD) {
-        return true; // Cible atteinte
-    } else if (std::abs(angleError) > ANGLE_REACHED_THRESHOLD) {
-        float factor = 0.2;
-        if (angleError < 0) factor = -factor;
-        rightCommand = factor;
-        leftCommand = -factor;
-    } else {
-        float factor = 0.5;
-        rightCommand = factor;
-        leftCommand = factor;
-    }
-
-    gladiator->control->setWheelSpeed(WheelAxis::LEFT, leftCommand);
-    gladiator->control->setWheelSpeed(WheelAxis::RIGHT, rightCommand);
-
-    return false; // Cible non atteinte
-}
-
-void setup() {
-    gladiator = new Gladiator();
-    gladiator->game->onReset(&reset);
+bool isSquareFree(Position pos) {
+    const MazeSquare* square = gladiator->maze->getSquare(pos.x, pos.y);
+    return (square && square->possession == 0 && !square->isBomb);  // Ensure the square is not occupied and has no bomb
 }
 
 void loop() {
     if (gladiator->game->isStarted()) {
-        static std::vector<Vector2> targets;
+        static unsigned i = 0;
+        bool showLogs = (i % LOG_FREQUENCY == 0);
 
-        // Vérifier si le terrain doit rétrécir
+        Position bombPos = findClosestBombPosition();
 
-        // Générer toutes les positions de la matrice actuell
-        
-        unsigned long currentTime = millis();
-        if (currentTime - lastShrinkTime >= 18000) { // 20 secondes
-            lastShrinkTime = currentTime;
-            currentSize -= 2;
-
+        if (bombPos.x != -1 && bombPos.y != -1) {
+            // Move to the closest bomb if it's not already collected
+            if (aim(gladiator, {static_cast<float>(bombPos.x), static_cast<float>(bombPos.y)}, showLogs)) {
+                // Check if the position is free to drop a bomb
+                if (isSquareFree(bombPos)) {
+                    gladiator->weapon->dropBombs(1);
+                    gladiator->log("Bomb dropped at (%.2f, %.2f)", bombPos.x, bombPos.y);  // Use %.2f to format float
+                } else {
+                    gladiator->log("Square occupied, moving to next bomb.");
+                }
+            }
         }
-        int id=gladiator->robot->getData().id;
-        if (id==94) {
-        for (int i = currentSize/2; i < currentSize; ++i) {
-            for (int j = 0; j < currentSize; ++j) {
-                
-        
-        MazeSquare *indexedSquare = gladiator->maze->getSquare(i, j);
-        Coin coin = indexedSquare->coin;
 
-         if (coin.value > 0)   {
-            Position posCoin = coin.p;
-            Position myPosition = gladiator->robot->getData().position;
-            
-            go_to(posCoin,myPosition);
-           } 
-         }
-    }
-} else {
-    for (int i = 0; i < currentSize/2; ++i) {
-        for (int j = 0; j < currentSize; ++j) {
-            
-    
-    MazeSquare *indexedSquare = gladiator->maze->getSquare(i, j);
-    Coin coin = indexedSquare->coin;
-
-     if (coin.value > 0)   {
-        Position posCoin = coin.p;
-        Position myPosition = gladiator->robot->getData().position;
-        
-        go_to(posCoin,myPosition);
-       } 
-     }
-}
-}
-    int bombCount = gladiator->weapon->getBombCount();
-
-    // Si il reste plus de 2 bombes
-    if (bombCount > 2) {
-        // Dropper toutes les bombes sauf 2
-        gladiator->weapon->dropBombs(bombCount - 2);
-        gladiator->log("Drop bomb");
-    // Il peut dropper au moins 1 bombe
-    } else if (gladiator->weapon->canDropBombs(1)) {
-        // Dropper une bombe
-        gladiator->weapon->dropBombs(1);
-        gladiator->log("Drop bomb");
+        i++;
     }
 
-    delay(100); // boucle à 100Hz
-}
-
+    delay(10);
 }
