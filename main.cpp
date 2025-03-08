@@ -10,7 +10,7 @@ constexpr float ANGLE_REACHED_THRESHOLD = 0.1f;
 constexpr float POS_REACHED_THRESHOLD = 0.05f;
 constexpr float KW = 1.2f;
 constexpr float KV = 1.0f;
-constexpr float WLIMIT = 3.0f;
+constexpr float WLIMIT = 0.3f;
 constexpr float VLIMIT = 0.6f;
 constexpr float ERREUR_POS = 0.07f;
 
@@ -71,7 +71,7 @@ inline bool aim(Gladiator *gladiator, const Vector2 &target, bool showLogs)
     {
         if (std::abs(angleError) > ANGLE_REACHED_THRESHOLD)
         {
-            float factor = angleError < 0 ? -0.2f : 0.2f;
+            float factor = angleError < 0 ? -0.1f : 0.1f;
             rightCommand = factor;
             leftCommand = -factor;
         }
