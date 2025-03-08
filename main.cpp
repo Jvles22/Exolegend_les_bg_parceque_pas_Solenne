@@ -209,7 +209,16 @@ void loop()
         static unsigned i = 0;
         bool showLogs = (i % 50 == 0);
 
-        if (aim(gladiator, {pos.x, pos.y}, showLogs))
+        // if (aim(gladiator, {pos.x, pos.y}, showLogs))
+        if (aim(gladiator, {1.5, 1.5}, showLogs))
+        {
+            gladiator->log("target atteinte !");
+        }
+        if (aim(gladiator, {0, 0}, showLogs))
+        {
+            gladiator->log("target atteinte !");
+        }
+        if (aim(gladiator, {1.5, 1.5}, showLogs))
         {
             gladiator->log("target atteinte !");
         }
