@@ -204,6 +204,7 @@ void loop()
     if (gladiator->game->isStarted())
     {
         Position pos = findCoinPosition();
+        gladiator->log("coin position : %d; %d", pos.x, pos.y);
         static unsigned i = 0;
         bool showLogs = (i % 50 == 0);
 
@@ -212,17 +213,18 @@ void loop()
             gladiator->log("target atteinte !");
         }
         int bombCount = gladiator->weapon->getBombCount();
+        gladiator->log("bombes restantes : %d", bombCount);
 
         // Si il reste plus de 2 bombes
-        if (bombCount > 2) {
+        if (bombCount > 0) {
             // Dropper toutes les bombes sauf 2
-            gladiator->weapon->dropBombs(bombCount - 2);
+            gladiator->weapon->dropBombs(bombCount);
             gladiator->log("Drop bomb");
         // Il peux dropper au moins 1 bombe
-        } else if (gladiator->weapon->canDropBombs(1)) {
-            // Dropper une bombe
-            gladiator->weapon->dropBombs(1);
-            gladiator->log("Drop bomb");
+        // } else if (gladiator->weapon->canDropBombs(1)) {
+        //     // Dropper une bombe
+        //     gladiator->weapon->dropBombs(1);
+        //     gladiator->log("Drop bomb");
         }
         i++;
     }
