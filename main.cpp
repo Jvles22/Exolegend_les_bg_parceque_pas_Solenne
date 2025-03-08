@@ -1,5 +1,6 @@
 #include "gladiator.h"
 #include <cmath>
+#include <vector>
 #undef abs
 
 // x,y représentent des coordonnées en m
@@ -199,43 +200,72 @@ Position findCoinPosition() {
     return closestCoinPosition;
 }
 
+void avoidBomb() {
+    const MazeSquare* current = gladiator->maze->getNearestSquare();
+    if (current->isBomb && current->danger > 4) {
+        std::vector<const MazeSquare*> safeSquares;
+        if (current->northSquare && !current->northSquare->isBomb) safeSquares.push_back(current->northSquare);
+        if (current->southSquare && !current->southSquare->isBomb) safeSquares.push_back(current->southSquare);
+        if (current->westSquare && !current->westSquare->isBomb) safeSquares.push_back(current->westSquare);
+        if (current->eastSquare && !current->eastSquare->isBomb) safeSquares.push_back(current->eastSquare);
+
+        if (!safeSquares.empty()) {
+            Position safePos = {safeSquares[0]->i * 0.214f + 0.107f, safeSquares[0]->j * 0.214f + 0.107f};
+            aim(gladiator, {safePos.x, safePos.y}, true);
+            gladiator->log("Avoiding bomb, moving to safe position: %0.01f; %0.01f", safePos.x, safePos.y);
+        }
+    }
+}
+
+void dropBombIfNeeded() {
+    // Récupérer la case actuelle du robot
+    const MazeSquare* currentSquare = gladiator->maze->getNearestSquare();
+
+    // Vérifier si la case est valide
+    if (!currentSquare) {
+        gladiator->log("Case actuelle invalide.");
+        return;
+    }
+
+    // Vérifier la possession de la case
+    if (currentSquare->possession == 0 || currentSquare->possession == 2) {
+        // Récupérer le nombre de bombes restantes
+        int bombCount = gladiator->weapon->getBombCount();
+        gladiator->log("Bombes restantes : %d", bombCount);
+
+        // Si le robot a des bombes, poser une bombe
+        if (bombCount > 0) {
+            gladiator->weapon->dropBombs(1); // Poser une bombe
+            gladiator->log("Bombe posée sur une case avec possession : %d", currentSquare->possession);
+        } else {
+            gladiator->log("Aucune bombe disponible.");
+        }
+    } else {
+        gladiator->log("La possession de la case est %d, pas de bombe posée.", currentSquare->possession);
+    }
+}
+
 void loop()
 {
-    // gladiator->log(gladiator->maze);
     if (gladiator->game->isStarted())
     {
+        // Vérifier et éviter les bombes
+        avoidBomb();
+
+        // Trouver la position du coin le plus proche
         Position pos = findCoinPosition();
         gladiator->log("coin position : %0.01f; %0.01f", pos.x, pos.y);
         static unsigned i = 0;
         bool showLogs = (i % 50 == 0);
 
         if (aim(gladiator, {pos.x, pos.y}, showLogs))
-        // if (aim(gladiator, {1.5, 1.5}, showLogs))
         {
             gladiator->log("target atteinte !");
         }
-        // else if (aim(gladiator, {0, 0}, showLogs))
-        // {
-        //     gladiator->log("target atteinte !");
-        // }
-        // if (aim(gladiator, {1.5, 1.5}, showLogs))
-        // {
-        //     gladiator->log("target atteinte !");
-        // }
-        int bombCount = gladiator->weapon->getBombCount();
-        gladiator->log("bombes restantes : %d", bombCount);
 
-        // Si il reste plus de 2 bombes
-        if (bombCount > 0) {
-            // Dropper toutes les bombes sauf 2
-            gladiator->weapon->dropBombs(bombCount);
-            gladiator->log("Drop bomb");
-        // Il peux dropper au moins 1 bombe
-        // } else if (gladiator->weapon->canDropBombs(1)) {
-        //     // Dropper une bombe
-        //     gladiator->weapon->dropBombs(1);
-        //     gladiator->log("Drop bomb");
-        }
+        // Appeler la fonction pour poser une bombe si nécessaire
+        dropBombIfNeeded();
+
         i++;
     }
     delay(50); // Augmenter le délai pour ralentir la boucle principale
