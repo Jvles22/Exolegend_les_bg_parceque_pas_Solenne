@@ -201,6 +201,7 @@ Position findCoinPosition() {
 
 void loop()
 {
+    // gladiator->log(gladiator->maze);
     if (gladiator->game->isStarted())
     {
         Position pos = findCoinPosition();
