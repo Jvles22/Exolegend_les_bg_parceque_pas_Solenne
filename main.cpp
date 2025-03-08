@@ -125,7 +125,7 @@ inline bool aim(Gladiator *gladiator, const Vector2 &target, bool showLogs)
     }
     else if (std::abs(angleError) > ANGLE_REACHED_THRESHOLD)
     {
-        float factor = 0.2;
+        float factor = 0.1; // Réduit le facteur pour ralentir la rotation
         if (angleError < 0)
             factor = -factor;
         rightCommand = factor;
@@ -133,7 +133,7 @@ inline bool aim(Gladiator *gladiator, const Vector2 &target, bool showLogs)
     }
     else
     {
-        float factor = 0.5;
+        float factor = 0.3; // Réduit le facteur pour ralentir le mouvement
         rightCommand = factor; //+angleError*0.1  => terme optionel, "pseudo correction angulaire";
         leftCommand = factor;  //-angleError*0.1   => terme optionel, "pseudo correction angulaire";
     }
@@ -157,9 +157,6 @@ void setup()
     // enregistrement de la fonction de reset qui s'éxecute à chaque fois avant qu'une partie commence
     gladiator->game->onReset(&reset);
 }
-// double calculateDistance(const Position& coord1, const Coordinate& coord2) {
-//     return std::sqrt(std::pow(coord1.x - coord2.x, 2) + std::pow(coord1.y - coord2.y, 2));
-// }
 
 Position findCoinPosition() {
     // Récupérer la case la plus proche du robot
@@ -202,35 +199,20 @@ Position findCoinPosition() {
     return closestCoinPosition;
 }
 
-
-// Fonction principale qui prend une liste de listes de coordonnées et une position
-// void processCoordinates(const std::vector<std::vector<Position>>& PositionLists, Position positiongladiator) {
-//     for (i=0;i<gladiator->maze->getCurrentMazeSize();i++) {
-//         for (j=0;j<gladiator->maze->getCurrentMazeSize();j++) {
-            
-//         }
-//     }
-// }
-
-
-
-
 void loop()
 {
-
     if (gladiator->game->isStarted())
     {
         Position pos = findCoinPosition();
         static unsigned i = 0;
         bool showLogs = (i % 50 == 0);
-        
 
         if (aim(gladiator, {pos.x, pos.y}, showLogs))
         {
             gladiator->log("target atteinte !");
         }
         int bombCount = gladiator->weapon->getBombCount();
-        
+
         // Si il reste plus de 2 bombes
         if (bombCount > 2) {
             // Dropper toutes les bombes sauf 2
@@ -244,5 +226,5 @@ void loop()
         }
         i++;
     }
-    delay(10); // boucle à 100Hz
+    delay(50); // Augmenter le délai pour ralentir la boucle principale
 }
