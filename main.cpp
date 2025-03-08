@@ -66,12 +66,77 @@ void loop()
         Position myPosition = gladiator->robot->getData().position;
         // Position goal{0.25, 0.25, 0};
         // for(int i = 0; i < 5; i++){
-        Position goal{myPosition.x+1, myPosition.y, 0};
+        Position goal{myPosition.x, myPosition.y, 0};
         go_to(goal, myPosition);
         //     go_to(goal, myPosition);
         gladiator->log("Position : %f %f %f", myPosition.x, myPosition.y, myPosition.a); // GFA 4.5.1
         // }
+        const MazeSquare *nearestSquare = gladiator->maze->getNearestSquare(); // GFA 4.7.2
+        // vérifier s'il a un mur au dessus
+        if (nearestSquare->northSquare != NULL)
+        {
+            MazeSquare *topSquare = nearestSquare->northSquare;
+            // calculons les coordonnées du centre de cette case
+            float squareSize = gladiator->maze->getSquareSize(); // largeur d'une case GFA 4.7.4
+            Position centerCoor;
+            // pour calculer les coordonnées x et y il faut récupérer les index i et j de la case
+            centerCoor.x = (topSquare->i + 0.25) * squareSize;
+            centerCoor.y = (topSquare->j + 0.25) * squareSize;
+            // Position goal{centerCoor.x, centerCoor.y, 0};
+            go_to(centerCoor,myPosition);
+        }
+
         
+        // vérifier s'il a un mur en dessous
+        else if (nearestSquare->southSquare != NULL){
+            MazeSquare *downSquare = nearestSquare->southSquare;
+            // calculons les coordonnées du centre de cette case
+            float squareSize = gladiator->maze->getSquareSize(); // largeur d'une case GFA 4.7.4
+            Position centerCoor;
+            // pour calculer les coordonnées x et y il faut récupérer les index i et j de la case
+            centerCoor.x = (downSquare->i + 0.25) * squareSize;
+            centerCoor.y = (downSquare->j + 0.25) * squareSize;
+            // Position goal{centerCoor.x, centerCoor.y, 0};
+            go_to(centerCoor,myPosition);
+
+        }
+        
+        // vérifier s'il a un mur à gauche
+        else if (nearestSquare->westSquare != NULL){
+            MazeSquare *leftSquare = nearestSquare->westSquare;
+            // calculons les coordonnées du centre de cette case
+            float squareSize = gladiator->maze->getSquareSize(); // largeur d'une case GFA 4.7.4
+            Position centerCoor;
+            // pour calculer les coordonnées x et y il faut récupérer les index i et j de la case
+            centerCoor.x = (leftSquare->i + 0.25) * squareSize;
+            centerCoor.y = (leftSquare->j + 0.25) * squareSize;
+            // Position goal{centerCoor.x, centerCoor.y, 0};
+            go_to(centerCoor,myPosition);
+
+        }
+        
+        // vérifier s'il a un mur à droite
+        else if (nearestSquare->eastSquare != NULL){
+            MazeSquare *rightSquare = nearestSquare->eastSquare;
+            // calculons les coordonnées du centre de cette case
+            float squareSize = gladiator->maze->getSquareSize(); // largeur d'une case GFA 4.7.4
+            Position centerCoor;
+            // pour calculer les coordonnées x et y il faut récupérer les index i et j de la case
+            centerCoor.x = (rightSquare->i + 0.25) * squareSize;
+            centerCoor.y = (rightSquare->j + 0.25) * squareSize;
+            // Position goal{centerCoor.x, centerCoor.y, 0};
+            go_to(centerCoor,myPosition);
+
+        }
+
+        // vérifier s'il a un mur à droite
+        // else if (nearestSquare->eastSquare == NULL)
+        // {
+        //     // SI le pointeur pointant vers la case droite est nul, cela veut dire qu'il y a un mur qui empêche de passer
+        //     gladiator->log("Il y a un mur à droite de la case où se trouve le robot"); // GFA 4.5.1
+        // }
+        
+
     }
     delay(10);
 }
