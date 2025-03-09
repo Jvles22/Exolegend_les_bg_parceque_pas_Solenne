@@ -183,8 +183,8 @@ void loop() {
         if (pos.x != -1 && pos.y != -1) {
             MazeSquare* start = gladiator->maze->getNearestSquare();
             MazeSquare* goal = gladiator->maze->getSquare(pos.x, pos.y);
-            // gladiator->log("Start Square: (%d, %d)", start->i, start->j);
-            // gladiator->log("Goal Square: (%d, %d)", goal->i, goal->j);
+            gladiator->log("Start Square: (%d, %d)", start->i, start->j);
+            gladiator->log("Goal Square: (%d, %d)", goal->i, goal->j);
             std::vector<MazeSquare*> path = bfs(start, goal);
 
             gladiator->log("Path Size: %zu", path.size());
