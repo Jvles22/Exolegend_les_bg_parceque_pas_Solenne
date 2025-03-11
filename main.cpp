@@ -21,6 +21,13 @@ constexpr float WLIMIT = 3.0f;
 constexpr float VLIMIT = 0.6f;
 constexpr float ERREUR_POS = 0.07f;
 
+
+struct CustomPosition {
+    float i;
+    float j;
+};
+
+
 class Vector2 {
 public:
     Vector2() : _x(0.), _y(0.) {}
@@ -171,18 +178,33 @@ std::vector<MazeSquare*> bfs(MazeSquare* start, MazeSquare* goal) {
     std::reverse(path.begin(), path.end());
     return path;
 }
-
+CustomPosition xyToij(float X, float Y, float A) {
+    CustomPosition robotPos;
+    
+    // Applique la matrice de rotation inverse pour passer du repère cartésien au repère du robot
+    robotPos.i = X * cos(A) + Y * sin(A);
+    robotPos.j = -X * sin(A) + Y * cos(A);
+    
+    return robotPos;
+}
 void loop() {
     if (gladiator->game->isStarted()) {
-        Position pos = findCoinPosition();
+        Position pos1 = findCoinPosition();
+        // Récupérez la position actuelle du robot
+        auto robotPosition = gladiator->robot->getData().position;
+        // Utilisez la position du robot pour A
+        CustomPosition pos = xyToij(pos1.x, pos1.y, robotPosition.a);
+
+        // Le reste du code reste inchangé
         static unsigned i = 0;
         bool showLogs = (i % LOG_FREQUENCY == 0);
 
-        gladiator->log("Coin Position: (%0.01f, %0.01f)", pos.x, pos.y);
+        gladiator->log("Coin Position: (%0.01f, %0.01f)", pos.i, pos.j); // Utilisez pos.i et pos.j
 
-        if (pos.x != -1 && pos.y != -1) {
+
+        if (pos.i != -1 && pos.j != -1) {
             MazeSquare* start = gladiator->maze->getNearestSquare();
-            MazeSquare* goal = gladiator->maze->getSquare(pos.x, pos.y);
+            MazeSquare* goal = gladiator->maze->getSquare(pos.i, pos.j);
             gladiator->log("Start Square: (%d, %d)", start->i, start->j);
             gladiator->log("Goal Square: (%d, %d)", goal->i, goal->j);
             std::vector<MazeSquare*> path = bfs(start, goal);
@@ -192,43 +214,43 @@ void loop() {
                 MazeSquare* square = path[j];
                 gladiator->log("Path Element %zu: Square (%d, %d)", j, square->i, square->j);
             }
-            // static int pathIndex = 0;
-        // if (pathIndex < static_cast<int>(path.size())) {
-        //     MazeSquare* nextSquare = path[pathIndex];
-        //     // Convertir en coordonnées du monde
-        //     float worldX = nextSquare->i * CELL_SIZE + CELL_SIZE/2;
-        //     float worldY = nextSquare->j * CELL_SIZE + CELL_SIZE/2;
-        //     gladiator->log("Next Square: (%0.01f, %0.01f)", worldX, worldY);
-        //     gladiator->log("Type of worldX: %s", typeid(worldX).name());
-        //     if (aim(gladiator, {worldX, worldY}, showLogs)) {
-        //         pathIndex++; // Avancer au prochain point
-        //     }
-        // }
+            static int pathIndex = 0;
+        if (pathIndex < static_cast<int>(path.size())) {
+            MazeSquare* nextSquare = path[pathIndex];
+            // Convertir en coordonnées du monde
+            float worldX = nextSquare->i * CELL_SIZE + CELL_SIZE/2;
+            float worldY = nextSquare->j * CELL_SIZE + CELL_SIZE/2;
+            gladiator->log("Next Square: (%0.01f, %0.01f)", worldX, worldY);
+            gladiator->log("Type of worldX: %s", typeid(worldX).name());
+            if (aim(gladiator, {worldX, worldY}, showLogs)) {
+                pathIndex++; // Avancer au prochain point
+            }
+        }
         }
 
-        // int bombCount = gladiator->weapon->getBombCount();
-        // if (bombCount > 0) {
-        //     // Vérifier les cases autour du robot pour déposer des bombes de manière stratégique
-        //     const MazeSquare* nearestSquare = gladiator->maze->getNearestSquare();
-        //     for (int di = -1; di <= 1; ++di) {
-        //         for (int dj = -1; dj <= 1; ++dj) {
-        //             int i = nearestSquare->i + di;
-        //             int j = nearestSquare->j + dj;
+        int bombCount = gladiator->weapon->getBombCount();
+        if (bombCount > 0) {
+            // Vérifier les cases autour du robot pour déposer des bombes de manière stratégique
+            const MazeSquare* nearestSquare = gladiator->maze->getNearestSquare();
+            for (int di = -1; di <= 1; ++di) {
+                for (int dj = -1; dj <= 1; ++dj) {
+                    int i = nearestSquare->i + di;
+                    int j = nearestSquare->j + dj;
 
-        //             if (i >= 0 && j >= 0 && i < 11 && j < 11) {
-        //                 const MazeSquare* square = gladiator->maze->getSquare(i, j);
-        //                 if (square && (square->possession == 2 || square->coin.value > 0)) {
-        //                     // Déposer une bombe si la case appartient à l'équipe adverse ou contient une pièce
-        //                     gladiator->weapon->dropBombs(1);
-        //                     gladiator->log("Drop bomb at strategic location (%d, %d)", i, j);
-        //                     bombCount--;
-        //                     if (bombCount == 0) break;
-        //                 }
-        //             }
-        //         }
-        //         if (bombCount == 0) break;
-        //     }
-        // }
+                    if (i >= 0 && j >= 0 && i < 11 && j < 11) {
+                        const MazeSquare* square = gladiator->maze->getSquare(i, j);
+                        if (square && (square->possession == 2 || square->coin.value > 0)) {
+                            // Déposer une bombe si la case appartient à l'équipe adverse ou contient une pièce
+                            gladiator->weapon->dropBombs(1);
+                            gladiator->log("Drop bomb at strategic location (%d, %d)", i, j);
+                            bombCount--;
+                            if (bombCount == 0) break;
+                        }
+                    }
+                }
+                if (bombCount == 0) break;
+            }
+        }
 
         i++;
     }
